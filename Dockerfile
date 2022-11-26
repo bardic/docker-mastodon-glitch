@@ -1,64 +1,63 @@
 FROM ghcr.io/linuxserver/baseimage-alpine-nginx:3.15
 
-ARG BUILD_DATE
-ARG VERSION
-ARG MASTODON_VERSION
-LABEL build_version="Linuxserver.io version:- ${VERSION} Build-date:- ${BUILD_DATE}"
-LABEL maintainer="TheSpad"
+LABEL maintainer="judohippo"
 
 ENV RAILS_ENV="production" \
-    NODE_ENV="production" \
-    PATH="${PATH}:/app/www/bin"
+  NODE_ENV="production" \
+  PATH="${PATH}:/app/www/bin" \
+  OTP_SECRET=precompile_placeholder \
+  SECRET_KEY_BASE=precompile_placeholder
 
 RUN \
   apk add -U --upgrade --no-cache \
-    ffmpeg \
-    file \
-    icu-libs \ 
-    imagemagick \
-    libpq \
-    libidn \
-    nodejs \
-    ruby \
-    ruby-bundler \
-    yarn && \
+  ffmpeg \
+  file \
+  icu-libs \ 
+  imagemagick \
+  libpq \
+  libidn \
+  nodejs \
+  ruby \
+  ruby-bundler \
+  yarn && \
   apk add --no-cache --virtual=build-dependencies \
-    build-base \
-    g++ \
-    gcc \
-    icu-dev \
-    libidn-dev \    
-    libpq-dev \
-    libxml2-dev \
-    libxslt-dev \
-    openssl-dev \
-    npm \
-    ruby-dev && \
+  build-base \
+  git \
+  g++ \
+  gcc \
+  icu-dev \
+  libidn-dev \    
+  libpq-dev \
+  libxml2-dev \
+  libxslt-dev \
+  openssl-dev \
+  npm \
+  curl \
+  ruby-dev \
+  unzip && \
   echo "**** install mastodon ****" && \
-  mkdir -p /app/www && \
-  if [ -z ${MASTODON_VERSION+x} ]; then \
-    MASTODON_VERSION=$(curl -sX GET "https://api.github.com/repos/mastodon/mastodon/releases/latest" \
-    | awk '/tag_name/{print $4;exit}' FS='[""]'); \
-  fi && \
-  curl -s -o \
-    /tmp/mastodon.tar.gz -L \
-    "https://github.com/mastodon/mastodon/archive/refs/tags/${MASTODON_VERSION}.tar.gz" && \
-  tar xf \
-    /tmp/mastodon.tar.gz -C \
-    /app/www/ --strip-components=1 && \
-  cd /app/www && \
+  gem install bundler && \
+  mkdir -p /app/  && \
+  cd /app && \
+  git clone https://github.com/glitch-soc/mastodon.git /app/www 
+
+WORKDIR /app/www/
+
+RUN \
   bundle config set --local deployment 'true' && \
   bundle config set --local without 'development test' && \
   bundle config set silence_root_warning true && \
   bundle install -j"$(nproc)" && \
   yarn install --pure-lockfile && \
-  OTP_SECRET=precompile_placeholder SECRET_KEY_BASE=precompile_placeholder rails assets:precompile && \
+  OTP_SECRET=precompile_placeholder SECRET_KEY_BASE=precompile_placeholder RAILS_ENV=production rails assets:precompile
+
+RUN \
+  cd /app/www/ && \
   echo "**** cleanup ****" && \
   apk del --purge \
-    build-dependencies && \
+  build-dependencies && \
   yarn cache clean && \
-  rm -rf \
-    /tmp/*
+  rm -rf 
 
 COPY root/ /
 
